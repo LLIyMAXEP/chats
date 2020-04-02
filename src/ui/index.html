@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<p lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Sample of websocket with golang</title>
+    <script src="jquery-3.4.1.min.js"></script>
+    <script>
+        function uuidv4() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        function sendMessage(ws, userId) {
+            let data = $('#message' + userId).val();
+            let $ml = $('#msg-list' + userId);
+            let msgId = uuidv4()
+            $('<p id="' + msgId + '">User ' + currentUserId + ': ' + data + '</p>').appendTo($ml);
+            let msg = {
+                id: msgId,
+                received: false,
+                type: "directMsg",
+                created: (new Date()).toJSON(),
+                receiver: {
+                    id: userId
+                },
+                sender: {
+                    id: currentUserId
+                },
+                payload: {
+                    text: data
+                }
+            }
+            ws.send(JSON.stringify(msg));
+            console.log("Sended:" + JSON.stringify(msg));
+        }
+
+        function sendMessageToChannel(ws, channelId) {
+            let data = $('#message' + channelId).val();
+            let $ml = $('#msg-list' + channelId);
+            let msgId = uuidv4()
+            $('<p id="' + msgId + '">User ' + currentUserId + ': ' + data + '</p>').appendTo($ml);
+            let msg = {
+                id: msgId,
+                received: false,
+                type: "channelMsg",
+                created: (new Date()).toJSON(),
+                channel: {
+                    id: channelId
+                },
+                sender: {
+                    id: currentUserId
+                },
+                payload: {
+                    text: data
+                }
+            }
+            ws.send(JSON.stringify(msg));
+            console.log("Sended:" + JSON.stringify(msg));
+        }
+
+        function sendCommit(ws, msg) {
+            let message = {
+                id: msg.id,
+                received: true,
+                type: "commitMsg",
+                created: (new Date()).toJSON(),
+                receiver: {
+                    id: msg.sender.id
+                },
+                sender: {
+                    id: currentUserId
+                }
+            }
+            ws.send(JSON.stringify(message));
+            console.log("Sended commit message:" + JSON.stringify(message));
+        }
+
+        let currentUserId = "";
+
+        $(function() {
+            const queryString = window.location.search;
+            console.log(queryString);
+            const urlParams = new URLSearchParams(queryString);
+            currentUserId = urlParams.get('user');
+
+            let ws = new WebSocket("ws://localhost:8080/hub" + queryString);
+
+            ws.onopen = function (e) {
+                console.log("open connection")
+            };
+
+            ws.onmessage = function (event) {
+                console.log("message received:" + event.data);
+                var msg = JSON.parse(event.data);
+                switch (msg.type) {
+                    case "init":{
+                        let $trChats = $('#chats');
+                        $trChats.empty();
+                        $trChats.append(`<td>
+                                <p>
+                                    <b>Users:</b>
+                                    <br/>
+                                    <div id="user-list"></div>
+                                </p>
+                                <p>
+                                    <b>Channels:</b>
+                                    <br/>
+                                    <div id="channel-list"></div>
+                                </p>
+                            </td>`);
+
+                        var $ul = $('#user-list');
+                        $ul.empty()
+                        if (msg.payload.clients != null) {
+                            for (let user of msg.payload.clients) {
+                                let userId = user.id
+                                let onlineStatus = user.online ? "online" : "offline"
+                                if (userId != currentUserId) {
+                                    let text = `<td>
+                                            <b id="status"` + userId + `>Chat with ` + userId + `</b>
+                                            <span>` + onlineStatus + `</span>
+                                            <br/><br/>
+                                            <input id="message` + userId + `" type="text" />
+                                            <input type="button" id="sendBtn` + userId + `" value="send" />
+                                            <div>
+                                            <div id="msg-list` + userId + `"></div>
+                                            </div>
+                                            </td>`
+
+                                    $('<p><a id=userId' + userId + ' href="#">' + userId + '</a></p>').appendTo($ul);
+                                    $trChats.append(text);
+
+                                    $('#sendBtn' + userId).click(function () {
+                                        sendMessage(ws, userId)
+                                    });
+                                }
+                            }
+
+                            for (let channel of msg.payload.public_channels) {
+                                let text = `<td>
+                                    <b>Channel: ` + channel.id + `</b>
+                                    <br/><br/>
+                                    <input id="message` + channel.id + `" type="text" />
+                                    <input type="button" id="sendBtn` + channel.id + `" value="send" />
+                                    <div>
+                                    <div id="msg-list` + channel.id + `"></div>
+                                    </div>
+                                    </td>`
+
+                                $('<p><a id=userId' + channel.id + ' href="#">' + channel.id + '</a></p>').appendTo($ul);
+                                $trChats.append(text);
+
+                                $('#sendBtn' + channel.id).click(function () {
+                                    sendMessageToChannel(ws, channel.id)
+                                });
+
+                                var $ml = $('#msg-list' + channel.id);
+                                for (let message of channel.messages) {
+                                    if (message != null) {
+                                        $('<p id="' + message.id + '">User ' + message.sender.id + ': ' + message.payload.text + '</p>').appendTo($ml);
+                                    }
+                                }
+                            }
+
+                            for (let directChannel of msg.payload.direct_channels) {
+                                var $ml = $('#msg-list' + directChannel.user_id);
+                                for (let message of directChannel.messages) {
+                                    if (message != null) {
+                                        $('<p id="' + message.id + '">User ' + message.sender.id + ': ' + message.payload.text + '</p>').appendTo($ml);
+                                    }
+                                }
+                            }
+                        }
+                        break;
+                    }
+                    case "clientStatus": {
+                        break
+                    }
+                    case "directMsg": {
+                        var $ml = $('#msg-list' + msg.sender.id);
+                        $('<p id="' + msg.id + '">User ' + msg.sender.id + ': ' + msg.payload.text + '</p>').appendTo($ml);
+                        sendCommit(ws, msg)
+                        break;
+                    }
+                    case "channelMsg": {
+                        var $ml = $('#msg-list' + msg.channel.id);
+                        $('<p id="' + msg.id + '">User ' + msg.sender.id + ': ' + msg.payload.text + '</p>').appendTo($ml);
+                        sendCommit(ws, msg)
+                        break;
+                    }
+                    case "commitMsg": {
+                        let $msg = $('#' + msg.id);
+                        $msg.append(" (received)")
+                        break;
+                    }
+                }
+            };
+        });
+    </script>
+</head>
+<body>
+    <table style="width: 100%">
+    <tr id="chats">
+    </tr>
+    </table>
+</body>
+</html>
