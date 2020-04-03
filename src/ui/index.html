@@ -113,14 +113,16 @@
 
                         var $ul = $('#user-list');
                         $ul.empty()
+                        var $cl = $('#channel-list');
+                        $cl.empty()
                         if (msg.payload.clients != null) {
                             for (let user of msg.payload.clients) {
                                 let userId = user.id
                                 let onlineStatus = user.online ? "online" : "offline"
                                 if (userId != currentUserId) {
                                     let text = `<td>
-                                            <b id="status"` + userId + `>Chat with ` + userId + `</b>
-                                            <span>` + onlineStatus + `</span>
+                                            <b>Chat with ` + userId + `</b>
+                                            <span id="status` + userId + `">` + onlineStatus + `</span>
                                             <br/><br/>
                                             <input id="message` + userId + `" type="text" />
                                             <input type="button" id="sendBtn` + userId + `" value="send" />
@@ -129,7 +131,7 @@
                                             </div>
                                             </td>`
 
-                                    $('<p><a id=userId' + userId + ' href="#">' + userId + '</a></p>').appendTo($ul);
+                                    $('<p>' + userId + '</p>').appendTo($ul);
                                     $trChats.append(text);
 
                                     $('#sendBtn' + userId).click(function () {
@@ -149,7 +151,7 @@
                                     </div>
                                     </td>`
 
-                                $('<p><a id=userId' + channel.id + ' href="#">' + channel.id + '</a></p>').appendTo($ul);
+                                $('<p>' + channel.id + '</p>').appendTo($cl);
                                 $trChats.append(text);
 
                                 $('#sendBtn' + channel.id).click(function () {
@@ -176,10 +178,12 @@
                         break;
                     }
                     case "clientStatus": {
+                        let onlineStatus = msg.payload.online ? "online" : "offline";
+                        $("#status" + msg.payload.id).text(onlineStatus);
                         break
                     }
                     case "directMsg": {
-                        var $ml = $('#msg-list' + msg.sender.id);
+                        let $ml = $('#msg-list' + msg.sender.id);
                         $('<p id="' + msg.id + '">User ' + msg.sender.id + ': ' + msg.payload.text + '</p>').appendTo($ml);
                         sendCommit(ws, msg)
                         break;

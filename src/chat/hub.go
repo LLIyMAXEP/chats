@@ -63,6 +63,7 @@ func (h *Hub) sendInit(client *Client) {
 		clientsList = append(clientsList, val)
 	}
 
+	// to list (slice) for frontend
 	directChannelsList := make([]*Channel, 0, len(h.DirectChannels))
 	for _, channel := range h.DirectChannels {
 		var toUserId string
@@ -81,6 +82,7 @@ func (h *Hub) sendInit(client *Client) {
 		}
 	}
 
+	// to list (slice) for frontend
 	publicChannelsList := make([]*Channel, 0, len(h.PublicChannels))
 	for _, channel := range h.PublicChannels {
 		publicChannelsList = append(publicChannelsList, channel)
@@ -96,22 +98,19 @@ func (h *Hub) sendInit(client *Client) {
 	}
 	websocket.JSON.Send(client.Connection, message)
 
-	h.sendClientStatus()
+	h.sendClientStatus(client)
 }
 
 // send client statuses to all connected clients
-func (h *Hub) sendClientStatus() {
-	clientsList := make([]*Client, 0, len(h.Clients))
-	for _, val := range h.Clients {
-		clientsList = append(clientsList, val)
-	}
+func (h *Hub) sendClientStatus(client *Client) {
 	h.sendAll(Message{
-		Type:    "connectedClients",
+		Type:    "clientStatus",
 		Created: time.Now(),
-		Payload: clientsList,
+		Payload: client,
 	})
 }
 
+// send message to all connected clients
 func (h *Hub) sendAll(msg Message) {
 	for _, client := range h.Clients {
 		if client.Connection != nil {
@@ -122,16 +121,17 @@ func (h *Hub) sendAll(msg Message) {
 	}
 }
 
+// send message direct to user and store it in private channel
 func (h *Hub) sendDirectMsg(msg Message) {
 	if val, ok := h.Clients[msg.Receiver.ID]; ok {
 		channelName := msg.getChannelName()
-		if val, ok := h.DirectChannels[channelName]; ok {
-			val.Messages = append(val.Messages, &msg)
+		if channel, ok := h.DirectChannels[channelName]; ok {
+			channel.Messages = append(channel.Messages, &msg)
 		} else {
 			clients := make(map[string]*Client)
 			clients[msg.Sender.ID] = msg.Sender
 			clients[msg.Receiver.ID] = msg.Receiver
-			messages := make([]*Message, 1)
+			messages := make([]*Message, 0, 1)
 			messages = append(messages, &msg)
 			h.DirectChannels[channelName] = &Channel{
 				ID:       channelName,
@@ -145,12 +145,14 @@ func (h *Hub) sendDirectMsg(msg Message) {
 	}
 }
 
+// send commit msg
 func (h *Hub) sendCommitMsg(msg Message) {
 	if val, ok := h.Clients[msg.Receiver.ID]; ok && val.Online {
 		websocket.JSON.Send(val.Connection, msg)
 	}
 }
 
+// send msg to channel and store it in this channel
 func (h *Hub) sendMsgToChannel(msg Message) {
 	if channel, ok := h.PublicChannels[msg.Channel.ID]; ok {
 		channel.Messages = append(channel.Messages, &msg)
@@ -162,6 +164,7 @@ func (h *Hub) sendMsgToChannel(msg Message) {
 	}
 }
 
+// add user to map of users of this hub and store its connection
 func (h *Hub) addUser(id string, ws *websocket.Conn) *Client {
 	if val, ok := h.Clients[id]; ok {
 		val.Connection = ws
@@ -180,11 +183,12 @@ func (h *Hub) addUser(id string, ws *websocket.Conn) *Client {
 	}
 }
 
+// remove user connection from hub
 func (h *Hub) deleteClient(id string) {
 	if val, ok := h.Clients[id]; ok {
 		val.Connection = nil
 		val.Online = false
-		h.sendClientStatus()
+		h.sendClientStatus(val)
 		log.Printf("Client %v offline", id)
 	} else {
 		log.Printf("Client %v not exists", id)
