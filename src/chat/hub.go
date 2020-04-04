@@ -147,6 +147,25 @@ func (h *Hub) sendDirectMsg(msg Message) {
 
 // send commit msg
 func (h *Hub) sendCommitMsg(msg Message) {
+	channelName := msg.getChannelName()
+	if channel, ok := h.DirectChannels[channelName]; ok {
+		for _, message := range channel.Messages {
+			if message.ID == msg.ID {
+				message.Received = true
+				break
+			}
+		}
+	} else if msg.Channel != nil {
+		if channel, ok := h.PublicChannels[msg.Channel.ID]; ok {
+			for _, message := range channel.Messages {
+				if message.ID == msg.ID {
+					message.Received = true
+					break
+				}
+			}
+		}
+	}
+
 	if val, ok := h.Clients[msg.Receiver.ID]; ok && val.Online {
 		websocket.JSON.Send(val.Connection, msg)
 	}

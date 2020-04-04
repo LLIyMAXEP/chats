@@ -2,7 +2,7 @@
 <p lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>Sample of websocket with golang</title>
+    <title>Sample of simple chat with golang</title>
     <script src="jquery-3.4.1.min.js"></script>
     <script>
         function uuidv4() {
@@ -196,7 +196,7 @@
                     }
                     case "commitMsg": {
                         let $msg = $('#' + msg.id);
-                        $msg.append(" (received)")
+                        $msg.append(" (received)");
                         break;
                     }
                 }
